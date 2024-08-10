@@ -8,6 +8,7 @@ class UserCreate(BaseModel):
 
 
 class UserRead(BaseModel):
+    id: int
     email: str
     username: str
 
@@ -15,3 +16,7 @@ class UserRead(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+
+class UserEdit(UserCreate):
+    pass

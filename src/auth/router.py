@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from src.database import get_async_session
-from src.auth.utils import create_user, verify_password, create_access_token, get_user_by_email
-from src.auth.schemas import UserCreate, UserLogin
+from src.auth.utils import create_user, verify_password, create_access_token, get_user_by_email, get_current_user, edit_user
+from src.auth.schemas import UserCreate, UserLogin, UserEdit, UserRead
 
 
 router = APIRouter(
@@ -116,6 +116,69 @@ async def logout():
         return response
 
     except Exception as error:
+        response_data = {
+            'status': 'error',
+            'data': str(error),
+            'detail': 'Server error'
+        }
+        return JSONResponse(content=response_data, status_code=500)
+    
+
+@router.post('/edit-profile')
+async def edit_profile(
+    new_user_data: UserEdit,
+    user: UserRead = Depends(get_current_user),
+    session = Depends(get_async_session)
+):
+    try:
+        # Проверка на наличие пользователя с таким же email
+        user_in_db = await get_user_by_email(session, new_user_data.email)
+        if user_in_db and user_in_db.id != user.id:
+            response_data = {
+                'status': 'error',
+                'data': None,
+                'detail': 'User with this email already registered'
+            }
+            response = JSONResponse(content=response_data, status_code=409)
+
+            return response
+
+        # Проверка пароля
+        if await verify_password(session, user.email, new_user_data.password):
+
+            # Изменение данных профиля
+            await edit_user(session, user, new_user_data)
+
+            # Создание JWT токена
+            jwt_token = await create_access_token(session, new_user_data.email)
+
+            response_data = {
+                'status': 'success',
+                'data': {
+                    'jwt_token': jwt_token,
+                    'token_type': 'jwt_token'
+                },
+                'detail': None
+            }
+            response = JSONResponse(content=response_data, status_code=200)
+
+            # Добавление токена в куки
+            response.set_cookie(key='jwt_token', value=jwt_token, max_age=3600)
+
+            return response
+        
+        else:
+            response_data = {
+                    'status': 'error',
+                    'data': None,
+                    'detail': 'Password is incorrect'
+                }
+            response = JSONResponse(content=response_data, status_code=400)
+
+            return response
+
+    except Exception as error:
+        print(error)
         response_data = {
             'status': 'error',
             'data': str(error),
