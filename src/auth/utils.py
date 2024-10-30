@@ -139,7 +139,6 @@ async def edit_user(session, user, new_user_data):
         user_info = await session.get(User, user.id)
 
         user_info.username = new_user_data.username
-        user_info.email = new_user_data.email
 
         # Добавление данных в бд и сохранение
         await session.commit()

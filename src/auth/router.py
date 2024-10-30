@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.database import get_async_session
@@ -16,18 +16,17 @@ async def register(
     user: UserCreate,
     session = Depends(get_async_session)
 ):
+    '''
+    Регистрация пользователя
+    '''
+
     try:
         # Проверка пользователя на наличие регистрации
         user_in_db = await get_user_by_email(session, user.email)
 
         # Ошибка, если пользователь уже зарегистрирован
         if user_in_db:
-            response_data = {
-                'status': 'error',
-                'data': None,
-                'detail': 'User already registered'
-            }
-            return JSONResponse(content=response_data, status_code=409)
+            raise HTTPException(status_code=409, detail='User already registered')
 
         # Запись пользователя в бд
         await create_user(session, user)
@@ -46,7 +45,17 @@ async def register(
         response.set_cookie(key='jwt_token', value=jwt_token, max_age=3600)
 
         return response
+    
+    # Ошибка
+    except HTTPException as error:
+        response_data = {
+            'status': 'error',
+            'data': None,
+            'detail': error.detail
+        }
+        return JSONResponse(content=response_data, status_code=error.status_code)
 
+    # Ошибка сервера
     except Exception as error:
         response_data = {
             'status': 'error',
@@ -61,6 +70,10 @@ async def login(
     user: UserLogin,
     session = Depends(get_async_session)
 ):
+    '''
+    Вход в аккаунт
+    '''
+
     try:
         # Проверка пароля пользователя
         if await verify_password(session, user.email, user.password):
@@ -85,12 +98,16 @@ async def login(
         
         # Ошибка авторизации
         else:
-            response_data = {
-                'status': 'error',
-                'data': None,
-                'detail': 'Invalid credentials'
-            }
-            return JSONResponse(content=response_data, status_code=401)
+            raise HTTPException(status_code=401, detail='Invalid credentials')
+
+    # Ошибка
+    except HTTPException as error:
+        response_data = {
+            'status': 'error',
+            'data': None,
+            'detail': error.detail
+        }
+        return JSONResponse(content=response_data, status_code=error.status_code)
 
     # Ошибка сервера
     except Exception as error:
@@ -104,6 +121,10 @@ async def login(
 
 @router.post('/logout')
 async def logout():
+    '''
+    Выход из аккаунта путем удаления куки в браузере
+    '''
+
     try:
         response_data = {
             'status': 'success',
@@ -115,6 +136,7 @@ async def logout():
 
         return response
 
+    # Ошибка сервера
     except Exception as error:
         response_data = {
             'status': 'error',
@@ -130,18 +152,14 @@ async def edit_profile(
     user: UserRead = Depends(get_current_user),
     session = Depends(get_async_session)
 ):
-    try:
-        # Проверка на наличие пользователя с таким же email
-        user_in_db = await get_user_by_email(session, new_user_data.email)
-        if user_in_db and user_in_db.id != user.id:
-            response_data = {
-                'status': 'error',
-                'data': None,
-                'detail': 'User with this email already registered'
-            }
-            response = JSONResponse(content=response_data, status_code=409)
+    '''
+    Редактирование имени по паролю
+    '''
 
-            return response
+    try:
+        if user is None:
+            # Пользователь не авторизован
+            raise HTTPException(status_code=401, detail='Unauthorized')
 
         # Проверка пароля
         if await verify_password(session, user.email, new_user_data.password):
@@ -150,7 +168,7 @@ async def edit_profile(
             await edit_user(session, user, new_user_data)
 
             # Создание JWT токена
-            jwt_token = await create_access_token(session, new_user_data.email)
+            jwt_token = await create_access_token(session, user.email)
 
             response_data = {
                 'status': 'success',
@@ -168,17 +186,63 @@ async def edit_profile(
             return response
         
         else:
-            response_data = {
-                    'status': 'error',
-                    'data': None,
-                    'detail': 'Password is incorrect'
-                }
-            response = JSONResponse(content=response_data, status_code=400)
+            raise HTTPException(status_code=400, detail='Password is incorrect')
+    
+    # Ошибка
+    except HTTPException as error:
+        response_data = {
+            'status': 'error',
+            'data': None,
+            'detail': error.detail
+        }
+        return JSONResponse(content=response_data, status_code=error.status_code)
 
-            return response
-
+    # Ошибка сервера
     except Exception as error:
         print(error)
+        response_data = {
+            'status': 'error',
+            'data': str(error),
+            'detail': 'Server error'
+        }
+        return JSONResponse(content=response_data, status_code=500)
+
+
+@router.get('/test-auth')
+async def test_auth(user: UserRead = Depends(get_current_user)):
+    '''
+    Пример проверки на наличие пользователя
+    '''
+
+    try:
+        if user is None:
+            # Пользователь не авторизован
+            raise HTTPException(status_code=401, detail='Unauthorized')
+
+        user_data = {
+            'id': user.id,
+            'email': user.email,
+            'username': user.username
+        }
+
+        response_data = {
+            'status': 'success',
+            'data': user_data,
+            'detail': None
+        }
+        return JSONResponse(content=response_data)
+    
+    # Ошибка
+    except HTTPException as error:
+        response_data = {
+            'status': 'error',
+            'data': None,
+            'detail': error.detail
+        }
+        return JSONResponse(content=response_data, status_code=error.status_code)
+
+    # Ошибка сервера
+    except Exception as error:
         response_data = {
             'status': 'error',
             'data': str(error),

@@ -18,5 +18,6 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserEdit(UserCreate):
-    pass
+class UserEdit(BaseModel):
+    username: str
+    password: str

@@ -6,3 +6,4 @@ fastapi==0.109.2
 pydantic==2.5.3
 bcrypt==3.2.0
 passlib==1.7.4
+aiosqlite==0.20.0

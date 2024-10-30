@@ -1,4 +1,4 @@
-## Аутентификация на FastAPI с использованием JWT + Cookies
+## Простая аутентификация JWT + Cookies (FastAPI)
 
 Для запуска:
 ```python
